@@ -1,0 +1,16 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+
+[profile.release]
+lto = "thin"
+strip = true
+
+[profile.dev]
+debug = 0
+incremental = false

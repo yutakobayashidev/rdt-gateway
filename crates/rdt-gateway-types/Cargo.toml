@@ -1,0 +1,12 @@
+[package]
+name = "rdt-gateway-types"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+schemars = { version = "1", optional = true }
+
+[features]
+schema = ["dep:schemars"]

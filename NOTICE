@@ -1,0 +1,20 @@
+Redlib attribution and modification notice
+
+The transport under crates/rdt-gateway/src/upstream/ is adapted from
+redlib-org/redlib, revision a4d36e954cf1bd64f209cd8868c5a29edc81b374:
+https://github.com/redlib-org/redlib/tree/a4d36e954cf1bd64f209cd8868c5a29edc81b374
+
+The upstream is licensed AGPL-3.0-only; see LICENSE. Copyright remains with
+the Redlib contributors; gateway adaptations are also AGPL-3.0-only.
+
+Sources: src/client.rs (HTTP client configuration), src/oauth.rs (anonymous
+OAuth requests and device headers), and src/oauth_resources.rs (application
+version constants, copied intact).
+
+Modified for this project on 2026-10-06: authentication and transport were
+adapted to an instance-owned client with bounded requests, lazy token renewal,
+serialized upstream access, cooldowns, and structured errors. Web rendering,
+alternate authentication, and token rotation to bypass rate limits were
+omitted. Reddit JSON is exposed through the gateway; independent clients
+perform domain-model conversion. These adaptations are maintained source
+copies, not an unmodified Redlib Cargo dependency.
