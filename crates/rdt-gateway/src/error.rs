@@ -35,8 +35,8 @@ impl Error {
     }
 }
 
-impl From<crate::upstream::Error> for Error {
-    fn from(e: crate::upstream::Error) -> Self {
+impl From<rdt_request::Error> for Error {
+    fn from(e: rdt_request::Error) -> Self {
         Self {
             status: StatusCode::from_u16(e.status).unwrap_or(StatusCode::BAD_GATEWAY),
             body: ApiError {

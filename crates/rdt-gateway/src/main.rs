@@ -1,6 +1,5 @@
-mod api;
-mod error;
-mod upstream;
+use rdt_gateway::api;
+use rdt_request::Upstream;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -29,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     let listener = tokio::net::TcpListener::bind(&listen).await?;
-    let upstream = upstream::Upstream::new()
+    let upstream = Upstream::new()
         .await
         .map_err(|e| format!("{}: {}", e.code, e.message))?;
     tracing::info!(address = %listener.local_addr()?, "gateway listening");

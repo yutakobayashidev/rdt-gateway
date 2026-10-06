@@ -1,4 +1,4 @@
-use crate::{normalize, Client, Comment, Envelope, Error, Post};
+use crate::{normalize, Client, Comment, Envelope, Error, Post, Transport};
 
 #[derive(Debug, Default)]
 pub struct SearchOptions {
@@ -81,7 +81,7 @@ fn query() -> Query {
     vec![("raw_json".into(), "1".into())]
 }
 
-impl Client {
+impl<T: Transport> Client<T> {
     pub async fn search(
         &self,
         text: &str,
@@ -187,6 +187,57 @@ mod tests {
             {"kind":"t3","data":{"id":"abc","permalink":"/r/rust/comments/abc/title/",
              "subreddit":"rust","title":"Test","selftext":"**body**","created_utc":1700000000}}
         ]}})
+    }
+
+    #[derive(Clone)]
+    struct FixtureTransport;
+
+    impl Transport for FixtureTransport {
+        async fn raw_get(
+            &self,
+            path: &str,
+            query: &[(String, String)],
+        ) -> Result<crate::RawResponse, Error> {
+            assert_eq!(path, "/r/rust/top.json");
+            assert_eq!(
+                query,
+                &[
+                    ("raw_json".into(), "1".into()),
+                    ("limit".into(), "2".into()),
+                    ("t".into(), "week".into()),
+                    ("after".into(), "t3_prev".into()),
+                ]
+            );
+            Ok(crate::RawResponse {
+                data: listing(),
+                fetched_at: "2026-10-06T00:00:00Z".into(),
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn alternate_transport_uses_the_same_mapping_and_normalization() {
+        let client = Client::with_transport(FixtureTransport);
+        let result = client
+            .list_posts(
+                "rust",
+                ListOptions {
+                    sort: Some("top".into()),
+                    time: Some("week".into()),
+                    limit: Some(2),
+                    cursor: Some("t3_prev".into()),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(result.data[0].id, "abc");
+        assert_eq!(result.data[0].body_markdown, "**body**");
+        assert_eq!(
+            result.data[0].permalink,
+            "https://www.reddit.com/r/rust/comments/abc/title/"
+        );
+        assert_eq!(result.meta.next_cursor.as_deref(), Some("t3_next"));
+        assert_eq!(result.meta.fetched_at, "2026-10-06T00:00:00Z");
     }
 
     async fn fixture(

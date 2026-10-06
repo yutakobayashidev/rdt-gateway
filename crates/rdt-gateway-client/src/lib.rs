@@ -2,13 +2,12 @@
 //! The gateway transports raw JSON; this library owns request mapping and models.
 mod normalize;
 mod reddit;
-pub use rdt_gateway_types::{Comment, Envelope, Post};
+pub use rdt_gateway_types::{Comment, Envelope, Post, RawResponse};
 pub use reddit::{CommentOptions, ListOptions, SearchOptions};
 use std::time::Duration;
 
 use rdt_gateway_types::ErrorEnvelope;
 use reqwest::{StatusCode, Url};
-use serde_json::Value;
 
 const MAX_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
 
@@ -51,20 +50,48 @@ impl Error {
     }
 }
 
-/// Original Reddit JSON and gateway acquisition time (also retained on cache hits).
-#[derive(Debug)]
-pub struct RawResponse {
-    pub data: Value,
-    pub fetched_at: String,
+/// Supplies original Reddit JSON and acquisition metadata to the SDK.
+pub trait Transport: Clone + Send + Sync + 'static {
+    fn raw_get(
+        &self,
+        path: &str,
+        query: &[(String, String)],
+    ) -> impl std::future::Future<Output = Result<RawResponse, Error>> + Send;
 }
 
 #[derive(Clone)]
-pub struct Client {
+pub struct Client<T = HttpTransport> {
+    transport: T,
+}
+
+impl Client<HttpTransport> {
+    pub fn new(base_url: &str) -> Result<Self, Error> {
+        Ok(Self::with_transport(HttpTransport::new(base_url)?))
+    }
+}
+
+impl<T: Transport> Client<T> {
+    pub fn with_transport(transport: T) -> Self {
+        Self { transport }
+    }
+
+    pub async fn raw_get(
+        &self,
+        path: &str,
+        query: &[(String, String)],
+    ) -> Result<RawResponse, Error> {
+        self.transport.raw_get(path, query).await
+    }
+}
+
+/// Connects the SDK to a remote gateway over HTTP.
+#[derive(Clone)]
+pub struct HttpTransport {
     base_url: Url,
     http: reqwest::Client,
 }
 
-impl Client {
+impl HttpTransport {
     pub fn new(base_url: &str) -> Result<Self, Error> {
         let base_url = Url::parse(base_url).map_err(|_| Error::InvalidBaseUrl)?;
         if !matches!(base_url.scheme(), "http" | "https")
@@ -85,12 +112,10 @@ impl Client {
             .map_err(transport_error)?;
         Ok(Self { base_url, http })
     }
+}
 
-    pub async fn raw_get(
-        &self,
-        path: &str,
-        query: &[(String, String)],
-    ) -> Result<RawResponse, Error> {
+impl Transport for HttpTransport {
+    async fn raw_get(&self, path: &str, query: &[(String, String)]) -> Result<RawResponse, Error> {
         if !path.starts_with('/')
             || path.starts_with("//")
             || !path

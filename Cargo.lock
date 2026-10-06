@@ -1458,22 +1458,16 @@ name = "rdt-gateway"
 version = "0.1.0"
 dependencies = [
  "axum",
- "base64 0.22.1",
  "chrono",
- "fastrand",
- "futures-util",
+ "form_urlencoded",
  "http-body-util",
- "httpdate",
  "rdt-gateway-types",
+ "rdt-request",
  "serde_json",
- "tegen",
  "tokio",
  "tower",
  "tracing",
  "tracing-subscriber",
- "uuid",
- "wreq",
- "wreq-util",
 ]
 
 [[package]]
@@ -1495,18 +1489,43 @@ version = "0.1.0"
 dependencies = [
  "schemars",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
 name = "rdt-mcp"
 version = "0.1.0"
 dependencies = [
+ "axum",
+ "clap",
+ "rdt-gateway",
  "rdt-gateway-client",
  "rdt-gateway-types",
+ "rdt-request",
  "rmcp",
  "serde",
  "serde_json",
  "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "rdt-request"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "fastrand",
+ "futures-util",
+ "httpdate",
+ "serde_json",
+ "tegen",
+ "tokio",
+ "uuid",
+ "wreq",
+ "wreq-util",
 ]
 
 [[package]]

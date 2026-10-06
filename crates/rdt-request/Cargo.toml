@@ -1,0 +1,21 @@
+[package]
+name = "rdt-request"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio = { version = "1", features = ["sync", "time"] }
+serde_json = "1"
+wreq = { version = "=6.0.0-rc.28", features = ["json", "stream", "brotli", "gzip", "deflate", "zstd"] }
+wreq-util = "=3.0.0-rc.10"
+base64 = "0.22"
+fastrand = "2"
+uuid = { version = "1", features = ["v4"] }
+tegen = "0.1.4"
+futures-util = "0.3"
+httpdate = "1"
+
+[dev-dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["full", "test-util"] }

@@ -189,3 +189,147 @@ async fn stdio_protocol_routes_tools_and_preserves_gateway_errors() {
         .unwrap()
         .unwrap();
 }
+
+#[tokio::test]
+async fn embedded_mcp_lists_four_tools_and_closes_shared_http_on_eof() {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_rdt-mcp"))
+        .env_remove("RDT_GATEWAY_URL")
+        .env("RUST_LOG", "info")
+        .args(["--listen", "127.0.0.1:0"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let mut stderr = BufReader::new(child.stderr.take().unwrap()).lines();
+    let address = timeout(Duration::from_secs(10), async {
+        loop {
+            let line = stderr.next_line().await.unwrap().expect("startup log");
+            if let Some((_, address)) = line.split_once("address=") {
+                break address.split_whitespace().next().unwrap().to_owned();
+            }
+        }
+    })
+    .await
+    .expect("embedded startup timeout");
+    let mut http = tokio::net::TcpStream::connect(&address).await.unwrap();
+    http.write_all(b"GET /health/live HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+        .await
+        .unwrap();
+    let mut health = String::new();
+    timeout(Duration::from_secs(5), http.read_to_string(&mut health))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(health.starts_with("HTTP/1.1 200"), "{health}");
+    let mut stdin = child.stdin.take().unwrap();
+    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+    stdin.write_all(format!("{}\n", json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"embedded-test","version":"1"}}})).as_bytes()).await.unwrap();
+    assert_eq!(response(&mut lines).await["id"], 1);
+    stdin
+        .write_all(
+            format!(
+                "{}\n{}\n",
+                json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
+                json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}})
+            )
+            .as_bytes(),
+        )
+        .await
+        .unwrap();
+    let listed = response(&mut lines).await;
+    let mut names = listed["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|tool| tool["name"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    names.sort();
+    assert_eq!(
+        names,
+        [
+            "reddit_get_comments",
+            "reddit_get_post",
+            "reddit_list_posts",
+            "reddit_search"
+        ]
+    );
+    drop(stdin);
+    let status = timeout(Duration::from_secs(10), child.wait())
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(status.success(), "{status}");
+    assert!(tokio::net::TcpStream::connect(&address).await.is_err());
+}
+
+#[tokio::test]
+async fn rejects_conflicting_modes_and_fails_on_occupied_listen_address() {
+    for use_env in [false, true] {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_rdt-mcp"));
+        command
+            .env_remove("RDT_GATEWAY_URL")
+            .args(["--listen", "127.0.0.1:0"]);
+        if use_env {
+            command.env("RDT_GATEWAY_URL", "http://localhost:8787");
+        } else {
+            command.args(["--gateway-url", "http://localhost:8787"]);
+        }
+        let output = command.output().await.unwrap();
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("cannot be used with"));
+        assert!(output.stdout.is_empty());
+    }
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_rdt-mcp"))
+        .env_remove("RDT_GATEWAY_URL")
+        .args(["--listen", &listener.local_addr().unwrap().to_string()])
+        .output()
+        .await
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn sigterm_during_initialization_closes_embedded_http() {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_rdt-mcp"))
+        .env_remove("RDT_GATEWAY_URL")
+        .env("RUST_LOG", "info")
+        .args(["--listen", "127.0.0.1:0"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let mut stderr = BufReader::new(child.stderr.take().unwrap()).lines();
+    let address = timeout(Duration::from_secs(10), async {
+        loop {
+            let line = stderr.next_line().await.unwrap().expect("startup log");
+            if let Some((_, address)) = line.split_once("address=") {
+                break address.split_whitespace().next().unwrap().to_owned();
+            }
+        }
+    })
+    .await
+    .unwrap();
+    assert!(
+        Command::new("kill")
+            .args(["-TERM", &child.id().unwrap().to_string()])
+            .status()
+            .await
+            .unwrap()
+            .success()
+    );
+    assert!(
+        timeout(Duration::from_secs(10), child.wait())
+            .await
+            .unwrap()
+            .unwrap()
+            .success()
+    );
+    assert!(tokio::net::TcpStream::connect(&address).await.is_err());
+}

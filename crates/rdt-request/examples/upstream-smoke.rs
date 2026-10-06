@@ -1,5 +1,4 @@
-#[path = "../src/upstream/mod.rs"]
-mod upstream;
+use rdt_request::{Error, Upstream};
 
 #[tokio::main]
 async fn main() {
@@ -12,8 +11,8 @@ async fn main() {
     }
 }
 
-async fn smoke() -> Result<(), upstream::Error> {
-    let upstream = upstream::Upstream::new().await?;
+async fn smoke() -> Result<(), Error> {
+    let upstream = Upstream::new().await?;
     let listing = upstream.json("/r/rust/hot.json?limit=1&raw_json=1").await?;
     let posts = listing["data"]["children"]
         .as_array()

@@ -1,6 +1,13 @@
 //! SDK domain models and shared gateway error representations.
 use serde::{Deserialize, Serialize};
 
+/// Original Reddit JSON and acquisition time, retained on cache hits.
+#[derive(Debug, Serialize)]
+pub struct RawResponse {
+    pub data: serde_json::Value,
+    pub fetched_at: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Envelope<T> {

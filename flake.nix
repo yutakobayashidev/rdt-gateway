@@ -30,7 +30,7 @@
             strictDeps = true;
             CARGO_BUILD_JOBS = "2";
             cargoExtraArgs = "--locked -p ${name}";
-          } // pkgs.lib.optionalAttrs (name == "rdt-gateway") {
+          } // pkgs.lib.optionalAttrs (builtins.elem name [ "rdt-gateway" "rdt-mcp" ]) {
             nativeBuildInputs = native;
             LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
           };

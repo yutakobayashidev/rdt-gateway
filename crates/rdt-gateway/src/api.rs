@@ -1,10 +1,11 @@
-use crate::{error::Error, upstream::Upstream};
+use crate::error::Error;
 use axum::{
     extract::{Path, RawQuery, State as Extract},
     http::{HeaderMap, StatusCode},
     routing::get,
     Json, Router,
 };
+use rdt_request::Upstream;
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -48,6 +49,30 @@ struct Health {
 impl State {
     pub fn new(upstream: Upstream) -> Self {
         Self::from_backend(Backend::Reddit(Box::new(upstream)))
+    }
+
+    /// Fetch through the same validation, cache and rate limits used by HTTP.
+    pub async fn get(
+        &self,
+        path: &str,
+        query: &[(String, String)],
+    ) -> Result<rdt_gateway_types::RawResponse, Error> {
+        let path = path
+            .strip_prefix('/')
+            .ok_or_else(|| Error::invalid("Expected an absolute Reddit .json path"))?;
+        let query = form_urlencoded::Serializer::new(String::new())
+            .extend_pairs(query)
+            .finish();
+        let result = self
+            .fetch(upstream_path(
+                path,
+                (!query.is_empty()).then_some(query.as_str()),
+            )?)
+            .await?;
+        Ok(rdt_gateway_types::RawResponse {
+            data: result.value,
+            fetched_at: result.fetched_at,
+        })
     }
     fn from_backend(backend: Backend) -> Self {
         Self(Arc::new(Inner {
@@ -230,6 +255,31 @@ mod tests {
         let body = response.into_body().collect().await.unwrap().to_bytes();
         (status, headers, serde_json::from_slice(&body).unwrap())
     }
+    #[tokio::test]
+    async fn embedded_and_http_requests_share_cache_and_policy() {
+        let state = state();
+        let query = vec![
+            ("q".into(), "rust & nix".into()),
+            ("q".into(), "a=b".into()),
+        ];
+        let embedded = state.get("/search.json", &query).await.unwrap();
+        let (status, headers, http) =
+            request(state.clone(), "/reddit/search.json?q=rust+%26+nix&q=a%3Db").await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(embedded.data, http);
+        assert_eq!(embedded.fetched_at, headers["x-reddit-fetched-at"]);
+        assert_eq!(calls(&state).await, ["/search.json?q=rust+%26+nix&q=a%3Db"]);
+        for path in [
+            "search.json",
+            "//search.json",
+            "/api/vote.json",
+            "/r/../search.json",
+        ] {
+            assert!(state.get(path, &[]).await.is_err(), "{path}");
+        }
+        assert_eq!(calls(&state).await.len(), 1);
+    }
+
     #[tokio::test]
     async fn cache_preserves_fetch_time_and_raw_response() {
         let state = state();
