@@ -56,6 +56,65 @@ Add this repository as a flake input named `rdt-gateway`, then:
 }
 ```
 
+### OpenAI Secure MCP Tunnel
+
+Add [openai-secure-tunnel-nix](https://github.com/nakasyou/openai-secure-tunnel-nix) to your flake inputs:
+
+```nix
+inputs.rdt-gateway.url = "github:yutakobayashidev/rdt-gateway";
+inputs.openai-secure-tunnel-nix = {
+  url = "github:nakasyou/openai-secure-tunnel-nix";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+```
+
+Use this NixOS module, passing `inputs` through `specialArgs`:
+
+```nix
+{ inputs, pkgs, ... }:
+let
+  packages = inputs.rdt-gateway.packages.${pkgs.stdenv.hostPlatform.system};
+  tunnelService = "tunnel-client-rdt-gateway";
+in
+{
+  imports = [
+    inputs.rdt-gateway.nixosModules.default
+    inputs.openai-secure-tunnel-nix.nixosModules.tunnel-client
+  ];
+
+  services = {
+    rdt-gateway.enable = true;
+    openai-tunnel-client.instances.rdt-gateway = {
+      enable = true;
+      environment.RDT_GATEWAY_URL = "http://127.0.0.1:8787";
+      settings = {
+        config_version = 1;
+        control_plane = {
+          tunnel_id = "tunnel_YOUR_ID";
+          api_key = "file:/run/credentials/${tunnelService}.service/api-key";
+        };
+        health.listen_addr = "127.0.0.1:18792";
+        admin_ui.open_browser = false;
+        mcp.commands = [{
+          channel = "main";
+          command = "${packages.rdt-mcp}/bin/rdt-mcp";
+        }];
+      };
+    };
+  };
+
+  systemd.services.${tunnelService} = {
+    after = [ "rdt-gateway.service" ];
+    wants = [ "rdt-gateway.service" ];
+    serviceConfig.LoadCredential = [
+      "api-key:/run/secrets/openai-tunnel-api-key"
+    ];
+  };
+}
+```
+
+Replace `tunnel_YOUR_ID` with your tunnel ID. Provision the API key at `/run/secrets/openai-tunnel-api-key` using your secret manager; never put the key in a Nix expression. The tunnel launches the stdio MCP server and needs no public listener. See the [OpenAI guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels) for tunnel creation and ChatGPT setup.
+
 ## License
 
 [AGPL-3.0-only](LICENSE). See [NOTICE](NOTICE) for Redlib attribution and source provenance.
