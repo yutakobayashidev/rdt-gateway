@@ -9,6 +9,7 @@
   outputs = { self, nixpkgs, crane }:
     let
       system = "x86_64-linux";
+      clientSystems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
       pkgs = import nixpkgs { inherit system; };
       craneLib = crane.mkLib pkgs;
       src = craneLib.cleanCargoSource ./.;
@@ -22,8 +23,11 @@
         CARGO_BUILD_JOBS = "2";
       };
       cargoArtifacts = craneLib.buildDepsOnly common;
-      package = name:
+      package = targetSystem: name:
         let
+          pkgs = import nixpkgs { system = targetSystem; };
+          craneLib = crane.mkLib pkgs;
+          src = craneLib.cleanCargoSource ./.;
           args = {
             inherit src;
             pname = name;
@@ -31,25 +35,26 @@
             CARGO_BUILD_JOBS = "2";
             cargoExtraArgs = "--locked -p ${name}";
           } // pkgs.lib.optionalAttrs (builtins.elem name [ "rdt-gateway" "rdt-mcp" ]) {
-            nativeBuildInputs = native;
+            nativeBuildInputs = with pkgs; [ cmake clang pkg-config gnumake git ];
             LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
           };
         in craneLib.buildPackage (args // {
           cargoArtifacts = craneLib.buildDepsOnly args;
         });
-      gateway = package "rdt-gateway";
+      gateway = package system "rdt-gateway";
     in {
-      packages.${system} = {
+      packages = nixpkgs.lib.genAttrs clientSystems (targetSystem: {
+        rdt-cli = package targetSystem "rdt-cli";
+      } // nixpkgs.lib.optionalAttrs (targetSystem == system) {
         default = gateway;
         rdt-gateway = gateway;
-        rdt-cli = package "rdt-cli";
-        rdt-mcp = package "rdt-mcp";
-      };
-      apps.${system} = builtins.mapAttrs (name: value: {
+        rdt-mcp = package system "rdt-mcp";
+      });
+      apps = builtins.mapAttrs (_: packages: builtins.mapAttrs (name: value: {
         type = "app";
         meta.description = "${name} executable";
         program = "${value}/bin/${if name == "default" then "rdt-gateway" else if name == "rdt-cli" then "rdt" else name}";
-      }) self.packages.${system};
+      }) packages) self.packages;
       devShells.${system}.default = craneLib.devShell {
         packages = native ++ [ pkgs.libclang pkgs.rustfmt pkgs.clippy pkgs.bash pkgs.curl pkgs.ripgrep pkgs.coreutils pkgs.python3 ];
         LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";

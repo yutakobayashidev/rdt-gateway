@@ -26,7 +26,7 @@ In embedded mode, MCP calls the shared service directly. When HTTP is enabled, b
 
 ## Quick start
 
-From a checkout, with Nix flakes enabled (currently x86_64 Linux):
+From a checkout, with Nix flakes enabled (gateway and MCP: x86_64 Linux):
 
 ```sh
 nix run .#rdt-gateway
@@ -44,6 +44,8 @@ nix run .#rdt-cli -- comments POST_ID --depth 3 --limit 50
 The gateway listens on `127.0.0.1:8787`. Set `RDT_GATEWAY_LISTEN` to change it, or `RDT_GATEWAY_URL` to point either client at another gateway. The HTTP endpoint has no authentication.
 
 ## CLI
+
+The `rdt-cli` Nix package and app are available for x86_64 Linux, aarch64 Linux, and Apple Silicon macOS. They provide the `rdt` executable, which connects to a gateway over HTTP.
 
 With `rdt` installed (or using `nix run .#rdt-cli --`):
 
