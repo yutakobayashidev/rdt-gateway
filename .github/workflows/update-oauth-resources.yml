@@ -1,0 +1,57 @@
+name: Update OAuth resources
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: update-oauth-resources
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Install Nix
+        uses: nixbuild/nix-quick-install-action@2c9db80fb984ceb1bcaa77cdda3fdf8cfba92035 # v34
+        with:
+          github_access_token: ${{ github.token }}
+          nix_conf: |
+            access-tokens = github.com=${{ github.token }}
+      - name: Update Android app versions
+        run: >-
+          nix shell --inputs-from . nixpkgs#bash nixpkgs#curl
+          nixpkgs#ripgrep nixpkgs#coreutils
+          -c bash scripts/update_oauth_resources.sh
+      - name: Validate generated Rust
+        run: >-
+          nix shell --inputs-from . nixpkgs#rustc
+          -c rustc --crate-type lib crates/rdt-request/src/oauth_resources.rs
+          -o "$RUNNER_TEMP/liboauth_resources.rlib"
+      - name: Create or update pull request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ github.token }}
+          branch: automation/update-oauth-resources
+          base: main
+          add-paths: crates/rdt-request/src/oauth_resources.rs
+          commit-message: 'chore: update Android app versions'
+          title: 'chore: update Android app versions'
+          body: |
+            Regenerated Android app versions from APKCombo with `scripts/update_oauth_resources.sh`.
+            The generated Rust file passed compilation. Review the version list before merging.
+
+            This PR uses GITHUB_TOKEN, so pull_request CI does not start automatically.
+            Run the CI workflow manually on `automation/update-oauth-resources` before merging.

@@ -136,6 +136,10 @@ From the checkout, run `bash scripts/update_oauth_resources.sh` with Bash, curl,
 
 Use `--output /tmp/oauth_resources.rs` to preview without replacing the checked-in file. Updater tests run with `python3 -m unittest discover -s scripts/tests`.
 
+The **Update OAuth resources** workflow runs every Monday at 03:17 UTC (12:17 JST), or manually from Actions on `main`. It fetches versions, compiles the generated Rust file, and creates or updates a PR on `automation/update-oauth-resources` only when there is a diff. Fetch or validation failures stop the run without publishing changes.
+
+Enable **Allow GitHub Actions to create and approve pull requests** in Settings → Actions → General → Workflow permissions. No extra secret is needed. PRs created with `GITHUB_TOKEN` do not trigger pull-request CI automatically; run **CI** manually on `automation/update-oauth-resources` before merging. Updates are never automatically merged.
+
 ## CI
 
 GitHub Actions runs on pull requests and pushes to `main`. It runs the updater’s Python tests, workspace Rust tests, and a NixOS service smoke test, and builds all three executables. Dependencies come from the locked nixpkgs input; actions are pinned to commit SHAs.
