@@ -136,6 +136,12 @@ From the checkout, run `bash scripts/update_oauth_resources.sh` with Bash, curl,
 
 Use `--output /tmp/oauth_resources.rs` to preview without replacing the checked-in file. Updater tests run with `python3 -m unittest discover -s scripts/tests`.
 
+## CI
+
+GitHub Actions runs on pull requests and pushes to `main`. It runs the updater’s Python tests, workspace Rust tests, and a NixOS service smoke test, and builds all three executables. Dependencies come from the locked nixpkgs input; actions are pinned to commit SHAs.
+
+Run `nix flake check -L` for workspace tests and the NixOS service smoke test (requires Linux with KVM), then `nix build --no-link .#rdt-gateway .#rdt-cli .#rdt-mcp` for the packages.
+
 ## License
 
 [AGPL-3.0-only](LICENSE). See [NOTICE](NOTICE) for Redlib attribution and source provenance.
