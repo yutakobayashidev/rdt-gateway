@@ -198,13 +198,8 @@ fn upstream_path(path: &str, query: Option<&str>) -> Result<String, Error> {
         || path
             .split('/')
             .any(|segment| segment.is_empty() || segment == "." || segment == "..")
-        || path.split('/').next().is_some_and(|segment| {
-            segment.eq_ignore_ascii_case("api") || segment.eq_ignore_ascii_case("api.json")
-        })
     {
-        return Err(Error::invalid(
-            "Expected a relative read-only Reddit .json path",
-        ));
+        return Err(Error::invalid("Expected a relative Reddit .json path"));
     }
     if query.is_some_and(|query| query.len() > 4096) {
         return Err(Error::invalid("Query string is too long"));
@@ -269,12 +264,7 @@ mod tests {
         assert_eq!(embedded.data, http);
         assert_eq!(embedded.fetched_at, headers["x-reddit-fetched-at"]);
         assert_eq!(calls(&state).await, ["/search.json?q=rust+%26+nix&q=a%3Db"]);
-        for path in [
-            "search.json",
-            "//search.json",
-            "/api/vote.json",
-            "/r/../search.json",
-        ] {
+        for path in ["search.json", "//search.json", "/r/../search.json"] {
             assert!(state.get(path, &[]).await.is_err(), "{path}");
         }
         assert_eq!(calls(&state).await.len(), 1);
@@ -340,11 +330,28 @@ mod tests {
         );
     }
     #[tokio::test]
+    async fn api_paths_are_forwarded_by_embedded_and_http_transports() {
+        let state = state();
+        for path in ["/api/info.json", "/api/morechildren.json"] {
+            let query = vec![("id".into(), "t3_example".into())];
+            let embedded = state.get(path, &query).await.unwrap();
+            let uri = format!("/reddit{path}?id=t3_example");
+            let (status, _, http) = request(state.clone(), &uri).await;
+            assert_eq!(status, StatusCode::OK);
+            assert_eq!(embedded.data, http);
+        }
+        assert_eq!(
+            calls(&state).await,
+            [
+                "/api/info.json?id=t3_example",
+                "/api/morechildren.json?id=t3_example",
+            ]
+        );
+    }
+    #[tokio::test]
     async fn validation_precedes_upstream() {
         let state = state();
         for uri in [
-            "/reddit/api/vote.json",
-            "/reddit/api.json",
             "/reddit/search",
             "/reddit//search.json",
             "/reddit/r/../search.json",
@@ -375,7 +382,7 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .uri("/reddit/search.json")
+                    .uri("/reddit/api/vote.json")
                     .body(Body::empty())
                     .unwrap(),
             )

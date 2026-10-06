@@ -4,8 +4,14 @@ version = "0.1.0"
 edition = "2021"
 license = "AGPL-3.0-only"
 
+[[bin]]
+name = "rdt"
+path = "src/main.rs"
+
 [dependencies]
 rdt-gateway-client = { path = "../rdt-gateway-client" }
 clap = { version = "4", features = ["derive", "env"] }
 serde_json = "1"
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+clap_complete = "4"
+url = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "io-std", "io-util"] }

@@ -4,8 +4,8 @@ A headless, read-only gateway for public Reddit data, with a standalone HTTP ser
 
 - **rdt-request** owns anonymous Reddit authentication and upstream transport.
 - **rdt-gateway** provides a shared request service with caching and rate limits, an Axum router, and a standalone HTTP executable.
-- **rdt-cli** provides JSON output from the terminal.
-- **rdt-mcp** bundles the request service and exposes search, post listings, posts, and comments over stdio.
+- **rdt** provides JSON or readable text from the terminal.
+- **rdt-mcp** bundles the request service and exposes public posts, comments, communities, and user activity over stdio.
 
 The CLI and MCP server share a Rust SDK that maps requests and normalizes responses. The SDK also offers `raw_get()` for unmodified JSON structure. Existing Reddit SDK compatibility is not guaranteed.
 
@@ -19,7 +19,7 @@ Inspired by [twitter_api_safe_relay](https://github.com/fa0311/twitter_api_safe_
 | `rdt-gateway` | Shared request state/cache, HTTP router, and daemon |
 | `rdt-gateway-types` | Shared responses and errors |
 | `rdt-gateway-client` | Transport-independent request mapping and normalization, plus the HTTP client |
-| `rdt-cli` | CLI using the HTTP client |
+| `rdt-cli` | `rdt` CLI using the HTTP client |
 | `rdt-mcp` | MCP library and executable, with an embedded request service |
 
 In embedded mode, MCP calls the shared service directly. When HTTP is enabled, both interfaces share authentication, cache, and rate-limit state. Normalization stays in the client library; the gateway returns Reddit JSON.
@@ -43,6 +43,46 @@ nix run .#rdt-cli -- comments POST_ID --depth 3 --limit 50
 
 The gateway listens on `127.0.0.1:8787`. Set `RDT_GATEWAY_LISTEN` to change it, or `RDT_GATEWAY_URL` to point either client at another gateway. The HTTP endpoint has no authentication.
 
+## CLI
+
+With `rdt` installed (or using `nix run .#rdt-cli --`):
+
+```text
+rdt [--url URL] [--json | --text] [--verbose] COMMAND
+  search QUERY [--subreddit NAME]
+  posts NAME
+  post POST
+  read POST
+  comments POST
+  subreddit search QUERY
+  subreddit info NAME
+  subreddit wiki NAME [--page index]
+  subreddit rules NAME
+  user info NAME
+  user posts NAME
+  user comments NAME
+  completions bash|zsh|fish
+```
+
+Names accept `r/name` or `u/name` as appropriate. `POST` accepts a post ID, `t3_ID`, or Reddit post URL; `-` reads one value from stdin. Wiki pages can contain nested paths such as `faq/install`.
+
+```sh
+rdt subreddit search 'self hosting' --limit 5
+rdt posts popular --sort top --time week
+rdt user comments USERNAME --sort new
+rdt read POST_URL --expand-more --max-requests 3 --limit 100 --text
+rdt search 'nixos flakes' --limit 1 | jq -r '.data[0].id' | rdt read -
+rdt completions zsh > _rdt
+```
+
+Search and listing commands accept `--limit` (default 20, maximum 100) and `--cursor` from `meta.next_cursor`; they do not automatically fetch subsequent pages. Post search defaults to relevance, subreddit posts to hot, and user history to new. Use `--help` for supported `--sort` values. `--time hour|day|week|month|year|all` filters searches or top/controversial listings.
+
+`read` returns the post and comments together; `comments` returns only comments. Both accept `--depth` (default 3, maximum 8; top-level comments are depth 1) and a total comment `--limit` (default 50, maximum 200). `--expand-more` fetches omitted comments using `/api/morechildren.json`. Its `--max-requests` budget defaults to 3, maximum 10, and includes the initial post/comment request but excludes authentication. Without expansion, only the initial request is made.
+
+JSON is the default, independent of TTY; `--json` makes it explicit and `--text` renders readable text. Results go to stdout and diagnostics to stderr. `--verbose` reports the gateway origin and elapsed time. Output is uncolored (`--no-color` and `NO_COLOR` are supported); commands never prompt. Gateway selection is `--url` > `RDT_GATEWAY_URL` > `http://127.0.0.1:8787`.
+
+Responses use `{data, meta}` with citation URLs and fetch time. `meta.requests` counts SDK transport calls, including cache hits, not physical Reddit requests. `meta.truncated` and `truncation_reasons` describe omitted content. A failed comment expansion preserves the available result and adds `meta.partial_error`; the CLI exits 1. Exit codes are 0 for success (including empty results and requested limits), 1 for retrieval failures, 2 for invalid arguments, and 130 for interruption.
+
 ## MCP
 
 ```sh
@@ -55,7 +95,13 @@ To also serve the HTTP gateway from the same process, pass `--listen 127.0.0.1:8
 
 Diagnostics go to stderr. Closing the MCP session or sending SIGINT/SIGTERM stops the process and its optional HTTP listener.
 
-Tools: `reddit_search`, `reddit_list_posts`, `reddit_get_post`, and `reddit_get_comments`. Results include citation URLs and metadata indicating omitted content.
+The 12 tools share the CLI's SDK, limits, normalized responses, and partial-result metadata:
+
+- Posts: `reddit_search`, `reddit_list_posts`, `reddit_get_post`, `reddit_read`, `reddit_get_comments`.
+- Communities: `reddit_search_subreddits`, `reddit_get_subreddit`, `reddit_get_wiki`, `reddit_get_rules`.
+- Users: `reddit_get_user`, `reddit_list_user_posts`, `reddit_list_user_comments`.
+
+MCP uses typed arguments such as `expand_more` and `max_requests`; no CLI subprocess or raw-query tool is involved. Partial retrieval failures return the available data with the MCP error flag set.
 
 ## Raw HTTP
 
@@ -63,7 +109,7 @@ Tools: `reddit_search`, `reddit_list_posts`, `reddit_get_post`, and `reddit_get_
 curl 'http://127.0.0.1:8787/reddit/r/rust/hot.json?limit=5&raw_json=1'
 ```
 
-`GET /reddit/{path}` forwards relative `.json` paths and query parameters to Reddit. `/api/*` paths are excluded. Successful responses preserve Reddit's JSON structure; `x-reddit-fetched-at` records the original fetch time. Health endpoints are `/health/live` and `/health/ready`.
+`GET /reddit/{path}` forwards relative `.json` paths and query parameters to Reddit, including `/api/*.json`. Upstream requests use GET with anonymous authentication and a fixed Reddit origin; write methods and invalid paths are rejected. Successful responses preserve Reddit's JSON structure; `x-reddit-fetched-at` records the original fetch time. Health endpoints are `/health/live` and `/health/ready`.
 
 ## NixOS
 

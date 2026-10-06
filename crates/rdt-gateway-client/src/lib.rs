@@ -1,8 +1,13 @@
 //! Reddit SDK shared by the independently installable CLI and MCP server.
 //! The gateway transports raw JSON; this library owns request mapping and models.
+mod discovery;
 mod normalize;
 mod reddit;
-pub use rdt_gateway_types::{Comment, Envelope, Post, RawResponse};
+mod thread;
+pub use discovery::DiscoveryOptions;
+pub use rdt_gateway_types::{
+    Comment, Envelope, Post, RawResponse, Subreddit, SubredditRule, Thread, User, WikiPage,
+};
 pub use reddit::{CommentOptions, ListOptions, SearchOptions};
 use std::time::Duration;
 

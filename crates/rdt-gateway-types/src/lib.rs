@@ -15,13 +15,18 @@ pub struct Envelope<T> {
     pub meta: Meta,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct Meta {
     pub fetched_at: String,
     pub next_cursor: Option<String>,
     pub truncated: bool,
     pub truncation_reasons: Vec<String>,
+    /// SDK content fetches, including cache hits; authentication is not counted.
+    #[serde(default)]
+    pub requests: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub partial_error: Option<ApiError>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -58,6 +63,8 @@ pub struct Post {
 pub struct Comment {
     pub id: String,
     pub parent_id: String,
+    /// Canonical citation URL when supplied by Reddit.
+    pub permalink: Option<String>,
     pub author: Option<String>,
     pub body_markdown: String,
     pub body_truncated: bool,
@@ -65,6 +72,13 @@ pub struct Comment {
     pub created_at: String,
     pub content_status: ContentStatus,
     pub replies: Vec<Comment>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct Thread {
+    pub post: Post,
+    pub comments: Vec<Comment>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -81,4 +95,50 @@ pub struct ApiError {
     pub retryable: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry_after_seconds: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct Subreddit {
+    pub id: String,
+    pub name: String,
+    pub permalink: String,
+    pub title: String,
+    pub description_markdown: String,
+    pub body_truncated: bool,
+    pub subscribers: Option<u64>,
+    pub nsfw: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct WikiPage {
+    pub subreddit: String,
+    pub page: String,
+    pub permalink: String,
+    pub body_markdown: String,
+    pub body_truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct SubredditRule {
+    pub name: String,
+    pub description_markdown: String,
+    pub body_truncated: bool,
+    pub kind: String,
+    pub permalink: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+pub struct User {
+    pub name: String,
+    pub permalink: String,
+    pub description_markdown: String,
+    pub body_truncated: bool,
+    pub link_karma: Option<i64>,
+    pub comment_karma: Option<i64>,
+    pub created_at: Option<String>,
+    pub suspended: bool,
 }

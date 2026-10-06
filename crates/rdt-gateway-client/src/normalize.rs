@@ -7,13 +7,13 @@ use serde_json::Value;
 const BODY_CHARS: usize = 16_000;
 const RESPONSE_BYTES: usize = 512 * 1024;
 
-fn required<'a>(v: &'a Value, field: &str) -> Result<&'a str, Error> {
+pub(crate) fn required<'a>(v: &'a Value, field: &str) -> Result<&'a str, Error> {
     v.get(field)
         .and_then(Value::as_str)
         .ok_or_else(|| Error::schema(format!("Missing {field}")))
 }
 
-fn timestamp(v: &Value) -> Result<String, Error> {
+pub(crate) fn timestamp(v: &Value) -> Result<String, Error> {
     let seconds = v["created_utc"]
         .as_f64()
         .filter(|n| n.is_finite())
@@ -40,7 +40,7 @@ fn status(body: &str, v: &Value) -> ContentStatus {
     }
 }
 
-fn body(s: &str) -> (String, bool) {
+pub(crate) fn body(s: &str) -> (String, bool) {
     let mut chars = s.chars();
     let limited: String = chars.by_ref().take(BODY_CHARS).collect();
     (limited, chars.next().is_some())
@@ -60,10 +60,12 @@ fn meta(fetched_at: &str, cursor: Option<String>) -> Meta {
         next_cursor: cursor,
         truncated: false,
         truncation_reasons: vec![],
+        requests: 1,
+        partial_error: None,
     }
 }
 
-fn reason(meta: &mut Meta, why: &str) {
+pub(crate) fn reason(meta: &mut Meta, why: &str) {
     meta.truncated = true;
     if !meta.truncation_reasons.iter().any(|s| s == why) {
         meta.truncation_reasons.push(why.into());
@@ -99,7 +101,7 @@ pub fn post(v: &Value) -> Result<Post, Error> {
     })
 }
 
-fn children(v: &Value) -> Result<&Vec<Value>, Error> {
+pub(crate) fn children(v: &Value) -> Result<&Vec<Value>, Error> {
     if v["kind"].as_str() != Some("Listing") {
         return Err(Error::schema("Expected Reddit Listing"));
     }
@@ -208,7 +210,7 @@ pub fn comments(
     Ok(out)
 }
 
-fn remove_last(comments: &mut Vec<Comment>) {
+pub(crate) fn remove_last(comments: &mut Vec<Comment>) {
     if let Some(last) = comments.last_mut() {
         if last.replies.is_empty() {
             comments.pop();
@@ -254,6 +256,10 @@ fn walk(
             Some(replies) => walk(children(replies)?, depth - 1, remaining, meta)?,
         };
         result.push(Comment {
+            permalink: entry["data"]["permalink"]
+                .as_str()
+                .filter(|path| path.starts_with('/') && !path.starts_with("//"))
+                .map(|path| format!("https://www.reddit.com{path}")),
             id: required(v, "id")?.into(),
             parent_id: required(v, "parent_id")?.into(),
             author: author(v),

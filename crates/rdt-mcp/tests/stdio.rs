@@ -37,10 +37,10 @@ fn expected_response(index: usize) -> Value {
         0 | 1 => json!([post]),
         2 => post,
         _ => {
-            json!([{"id":"c1","parent_id":"t3_abc123","author":"bob","body_markdown":"Comment **markdown**","body_truncated":false,"score":5,"created_at":"2023-11-14T22:13:20Z","content_status":"available","replies":[]}])
+            json!([{"id":"c1","parent_id":"t3_abc123","permalink":null,"author":"bob","body_markdown":"Comment **markdown**","body_truncated":false,"score":5,"created_at":"2023-11-14T22:13:20Z","content_status":"available","replies":[]}])
         }
     };
-    json!({"data":data,"meta":{"fetched_at":FETCHED_AT,"next_cursor":if index < 2 {json!("t3_next")}else{Value::Null},"truncated":index == 3,"truncation_reasons":if index == 3 {json!(["more"])}else{json!([])}}})
+    json!({"data":data,"meta":{"fetched_at":FETCHED_AT,"requests":1,"next_cursor":if index < 2 {json!("t3_next")}else{Value::Null},"truncated":index == 3,"truncation_reasons":if index == 3 {json!(["more"])}else{json!([])}}})
 }
 
 #[tokio::test]
@@ -91,7 +91,7 @@ async fn stdio_protocol_routes_tools_and_preserves_gateway_errors() {
     stdin.write_all(b"{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}\n").await.unwrap();
     let listed = response(&mut lines).await;
     let tools = listed["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 4);
+    assert_eq!(tools.len(), 12);
     for tool in tools {
         assert_eq!(tool["annotations"]["readOnlyHint"], true);
         assert_eq!(tool["inputSchema"]["type"], "object");
@@ -100,16 +100,20 @@ async fn stdio_protocol_routes_tools_and_preserves_gateway_errors() {
         assert!(tool["outputSchema"]["properties"]["meta"].is_object());
         let required = tool["outputSchema"]["required"].as_array().unwrap();
         assert!(required.contains(&json!("data")) && required.contains(&json!("meta")));
-        if tool["name"] == "reddit_get_post" || tool["name"] == "reddit_get_comments" {
-            assert_eq!(
-                tool["inputSchema"]["properties"]["id"]["pattern"],
-                "^[A-Za-z0-9]{1,16}$"
-            );
-        }
         if tool["name"] == "reddit_list_posts" {
+            let schema = tool["inputSchema"].to_string();
+            for sort in ["hot", "new", "top", "rising", "controversial"] {
+                assert!(schema.contains(&format!("\"{sort}\"")), "{schema}");
+            }
+        }
+        if tool["name"] == "reddit_read" || tool["name"] == "reddit_get_comments" {
             assert_eq!(
-                tool["inputSchema"]["properties"]["name"]["pattern"],
-                "^[A-Za-z0-9_]{1,32}$"
+                tool["inputSchema"]["properties"]["expand_more"]["default"],
+                false
+            );
+            assert_eq!(
+                tool["inputSchema"]["properties"]["max_requests"]["maximum"],
+                10
             );
         }
     }
@@ -159,7 +163,7 @@ async fn stdio_protocol_routes_tools_and_preserves_gateway_errors() {
     }
     // The mock has closed: invalid segments must fail locally, without HTTP.
     for (name, arguments, message) in [
-        ("reddit_get_post", json!({"id":"t3_abc"}), "id"),
+        ("reddit_get_post", json!({"id":"t3_"}), "id"),
         ("reddit_get_comments", json!({"id":"a".repeat(17)}), "id"),
         (
             "reddit_list_posts",
@@ -179,6 +183,7 @@ async fn stdio_protocol_routes_tools_and_preserves_gateway_errors() {
             result["result"]["content"][0]["text"]
                 .as_str()
                 .unwrap()
+                .to_lowercase()
                 .contains(message),
             "{result}"
         );
@@ -191,7 +196,7 @@ async fn stdio_protocol_routes_tools_and_preserves_gateway_errors() {
 }
 
 #[tokio::test]
-async fn embedded_mcp_lists_four_tools_and_closes_shared_http_on_eof() {
+async fn embedded_mcp_lists_twelve_tools_and_closes_shared_http_on_eof() {
     let mut child = Command::new(env!("CARGO_BIN_EXE_rdt-mcp"))
         .env_remove("RDT_GATEWAY_URL")
         .env("RUST_LOG", "info")
@@ -251,8 +256,16 @@ async fn embedded_mcp_lists_four_tools_and_closes_shared_http_on_eof() {
         [
             "reddit_get_comments",
             "reddit_get_post",
+            "reddit_get_rules",
+            "reddit_get_subreddit",
+            "reddit_get_user",
+            "reddit_get_wiki",
             "reddit_list_posts",
-            "reddit_search"
+            "reddit_list_user_comments",
+            "reddit_list_user_posts",
+            "reddit_read",
+            "reddit_search",
+            "reddit_search_subreddits"
         ]
     );
     drop(stdin);

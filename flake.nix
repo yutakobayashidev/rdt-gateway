@@ -48,7 +48,7 @@
       apps.${system} = builtins.mapAttrs (name: value: {
         type = "app";
         meta.description = "${name} executable";
-        program = "${value}/bin/${if name == "default" then "rdt-gateway" else name}";
+        program = "${value}/bin/${if name == "default" then "rdt-gateway" else if name == "rdt-cli" then "rdt" else name}";
       }) self.packages.${system};
       devShells.${system}.default = craneLib.devShell {
         packages = native ++ [ pkgs.libclang pkgs.rustfmt pkgs.clippy pkgs.bash pkgs.curl pkgs.ripgrep pkgs.coreutils pkgs.python3 ];

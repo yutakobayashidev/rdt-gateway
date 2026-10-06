@@ -22,6 +22,8 @@ pub struct CommentOptions {
     pub sort: Option<String>,
     pub depth: Option<u32>,
     pub limit: Option<u32>,
+    pub expand_more: bool,
+    pub max_requests: Option<u32>,
 }
 
 const TIMES: &[&str] = &["hour", "day", "week", "month", "year", "all"];
@@ -107,7 +109,8 @@ impl<T: Transport> Client<T> {
         ]);
         pagination(&mut query, options.cursor)?;
         let path = if let Some(name) = options.subreddit {
-            identifier(&name, true)?;
+            let name = name.strip_prefix("r/").unwrap_or(&name);
+            identifier(name, true)?;
             query.push(("restrict_sr".into(), "on".into()));
             format!("/r/{name}/search.json")
         } else {
@@ -122,16 +125,23 @@ impl<T: Transport> Client<T> {
         name: &str,
         options: ListOptions,
     ) -> Result<Envelope<Vec<Post>>, Error> {
+        let name = name.strip_prefix("r/").unwrap_or(name);
         identifier(name, true)?;
-        let sort = choice(options.sort.as_deref(), "hot", &["hot", "new", "top"])?;
+        let sort = choice(
+            options.sort.as_deref(),
+            "hot",
+            &["hot", "new", "top", "rising", "controversial"],
+        )?;
         let time = choice(options.time.as_deref(), "all", TIMES)?;
-        if options.time.is_some() && sort != "top" {
-            return Err(Error::invalid("time is only supported with sort=top"));
+        if options.time.is_some() && !matches!(sort, "top" | "controversial") {
+            return Err(Error::invalid(
+                "time is only supported with sort=top or controversial",
+            ));
         }
         let limit = number(options.limit, 20, 100)?;
         let mut query = query();
         query.push(("limit".into(), limit.to_string()));
-        if sort == "top" {
+        if matches!(sort, "top" | "controversial") {
             query.push(("t".into(), time.into()));
         }
         pagination(&mut query, options.cursor)?;
@@ -142,7 +152,7 @@ impl<T: Transport> Client<T> {
     }
 
     pub async fn post(&self, id: &str) -> Result<Envelope<Post>, Error> {
-        identifier(id, false)?;
+        let id = crate::thread::post_id(id)?;
         let mut query = query();
         query.push(("limit".into(), "1".into()));
         let raw = self
@@ -156,23 +166,11 @@ impl<T: Transport> Client<T> {
         id: &str,
         options: CommentOptions,
     ) -> Result<Envelope<Vec<Comment>>, Error> {
-        identifier(id, false)?;
-        let sort = choice(
-            options.sort.as_deref(),
-            "confidence",
-            &["confidence", "top", "new", "controversial", "old", "qa"],
-        )?;
-        let depth = number(options.depth, 3, 8)?;
-        let limit = number(options.limit, 50, 200)?;
-        let mut query = query();
-        query.extend([
-            ("sort".into(), sort.into()),
-            ("limit".into(), limit.to_string()),
-        ]);
-        let raw = self
-            .raw_get(&format!("/comments/{id}.json"), &query)
-            .await?;
-        normalize::comments(&raw.data, &raw.fetched_at, depth, limit)
+        let thread = self.read(id, options).await?;
+        Ok(Envelope {
+            data: thread.data.comments,
+            meta: thread.meta,
+        })
     }
 }
 
