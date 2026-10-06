@@ -9,7 +9,13 @@ the Redlib contributors; gateway adaptations are also AGPL-3.0-only.
 
 Sources: src/client.rs (HTTP client configuration), src/oauth.rs (anonymous
 OAuth requests and device headers), and src/oauth_resources.rs (application
-version constants, copied intact).
+version constants, initially copied; unused iOS lists removed).
+
+The updater scripts/update_oauth_resources.sh is adapted from the same
+revision's scripts/update_oauth_resources.sh. It only refreshes Android app
+versions used by this project, validates fetched data, and replaces the output
+atomically after all requests succeed. The checked-in Android data still
+comes from the revision above until refreshed locally.
 
 Modified for this project on 2026-10-06: authentication and transport were
 adapted to an instance-owned client with bounded requests, lazy token renewal,

@@ -51,7 +51,7 @@
         program = "${value}/bin/${if name == "default" then "rdt-gateway" else name}";
       }) self.packages.${system};
       devShells.${system}.default = craneLib.devShell {
-        packages = native ++ [ pkgs.libclang pkgs.rustfmt pkgs.clippy ];
+        packages = native ++ [ pkgs.libclang pkgs.rustfmt pkgs.clippy pkgs.bash pkgs.curl pkgs.ripgrep pkgs.coreutils pkgs.python3 ];
         LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
         CARGO_BUILD_JOBS = "2";
       };

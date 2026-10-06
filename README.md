@@ -130,6 +130,12 @@ in
 
 Replace `tunnel_YOUR_ID` with your tunnel ID. Provision the API key at `/run/secrets/openai-tunnel-api-key` using your secret manager; never put the key in a Nix expression. The tunnel launches the self-contained stdio MCP server; no separate gateway service or public listener is needed. See the [OpenAI guide](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels) for tunnel creation and ChatGPT setup.
 
+## Updating app versions
+
+From the checkout, run `bash scripts/update_oauth_resources.sh` with Bash, curl, ripgrep, and coreutils available (also included in `nix develop`). It fetches Android app versions from APKCombo and regenerates `crates/rdt-request/src/oauth_resources.rs`. Review the diff before committing. HTTP errors or unexpected page markup leave the existing file untouched.
+
+Use `--output /tmp/oauth_resources.rs` to preview without replacing the checked-in file. Updater tests run with `python3 -m unittest discover -s scripts/tests`.
+
 ## License
 
 [AGPL-3.0-only](LICENSE). See [NOTICE](NOTICE) for Redlib attribution and source provenance.
