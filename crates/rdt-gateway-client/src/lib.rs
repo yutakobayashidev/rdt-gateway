@@ -133,10 +133,7 @@ impl Transport for HttpTransport {
         {
             return Err(Error::InvalidPath);
         }
-        let url = self
-            .base_url
-            .join(&format!("/reddit{path}"))
-            .map_err(|_| Error::InvalidPath)?;
+        let url = self.base_url.join(path).map_err(|_| Error::InvalidPath)?;
         let mut response = self
             .http
             .get(url)
@@ -296,8 +293,8 @@ mod tests {
             "http://example.com/x",
             "/\\example.com",
             "/search.json?q=oops",
-            "/../health/live",
-            "/%2e%2e/health/live",
+            "/../health",
+            "/%2e%2e/health",
         ] {
             assert!(matches!(
                 client.raw_get(path, &[]).await,

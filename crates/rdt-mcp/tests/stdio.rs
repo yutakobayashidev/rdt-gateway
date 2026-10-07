@@ -151,12 +151,12 @@ async fn stdio_protocol_routes_tools_and_preserves_gateway_errors() {
         .await
         .unwrap()
         .unwrap();
-    assert!(paths[0].starts_with("GET /reddit/search.json?"));
+    assert!(paths[0].starts_with("GET /search.json?"));
     assert!(paths[0].contains("q=nix+%26+rust"));
     assert!(paths[0].contains("limit=2"));
-    assert!(paths[1].starts_with("GET /reddit/r/nixos/new.json?"));
-    assert!(paths[2].starts_with("GET /reddit/comments/abc123.json?"));
-    assert!(paths[3].starts_with("GET /reddit/comments/abc123.json?"));
+    assert!(paths[1].starts_with("GET /r/nixos/new.json?"));
+    assert!(paths[2].starts_with("GET /comments/abc123.json?"));
+    assert!(paths[3].starts_with("GET /comments/abc123.json?"));
     assert!(paths[3].contains("limit=4"));
     for path in &paths {
         assert!(path.contains("raw_json=1"), "{path}");
@@ -219,7 +219,7 @@ async fn embedded_mcp_lists_twelve_tools_and_closes_shared_http_on_eof() {
     .await
     .expect("embedded startup timeout");
     let mut http = tokio::net::TcpStream::connect(&address).await.unwrap();
-    http.write_all(b"GET /health/live HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+    http.write_all(b"GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
         .await
         .unwrap();
     let mut health = String::new();

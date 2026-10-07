@@ -73,14 +73,13 @@
             machine.start()
             machine.wait_for_unit("rdt-gateway.service")
             machine.wait_for_open_port(8787)
-            machine.succeed("curl -fsS http://127.0.0.1:8787/health/live | grep true")
-            machine.succeed("test $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8787/health/ready) = 503")
+            machine.succeed("curl -fsS http://127.0.0.1:8787/health | grep true")
             machine.succeed("ss -ltn | grep '127.0.0.1:8787'")
             machine.succeed("test $(systemctl show rdt-gateway.service -p DynamicUser --value) = yes")
             machine.succeed("systemctl restart rdt-gateway.service")
             machine.wait_for_unit("rdt-gateway.service")
             machine.wait_for_open_port(8787)
-            machine.succeed("curl -fsS http://127.0.0.1:8787/health/live | grep true")
+            machine.succeed("curl -fsS http://127.0.0.1:8787/health | grep true")
           '';
         };
       };

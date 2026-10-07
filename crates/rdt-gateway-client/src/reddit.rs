@@ -276,7 +276,7 @@ mod tests {
     #[tokio::test]
     async fn sdk_maps_all_operations_and_normalizes_raw_responses() {
         let (client, server) = fixture(
-            "/reddit/r/NixOS/search.json",
+            "/r/NixOS/search.json",
             &[
                 ("raw_json", "1"),
                 ("q", "nix & flakes"),
@@ -308,7 +308,7 @@ mod tests {
         assert_eq!(result.meta.fetched_at, "2026-10-06T00:00:00Z");
 
         let (client, server) = fixture(
-            "/reddit/r/rust/top.json",
+            "/r/rust/top.json",
             &[("raw_json", "1"), ("limit", "20"), ("t", "week")],
             listing(),
         )
@@ -333,7 +333,7 @@ mod tests {
 
         let thread = json!([listing(), {"kind":"Listing","data":{"children":[{"kind":"more","data":{"count":5}}]}}]);
         let (client, server) = fixture(
-            "/reddit/comments/abc.json",
+            "/comments/abc.json",
             &[("raw_json", "1"), ("limit", "1")],
             thread.clone(),
         )
@@ -341,7 +341,7 @@ mod tests {
         assert_eq!(client.post("abc").await.unwrap().data.id, "abc");
         server.await.unwrap();
         let (client, server) = fixture(
-            "/reddit/comments/abc.json",
+            "/comments/abc.json",
             &[("raw_json", "1"), ("sort", "confidence"), ("limit", "50")],
             thread,
         )
@@ -418,8 +418,7 @@ mod tests {
     #[tokio::test]
     async fn raw_access_preserves_unknown_fields_and_large_bodies_without_model_validation() {
         let body = json!({"new_reddit_field":{"arbitrary":[1,true,null]},"selftext":"a".repeat(1024*1024+1)});
-        let (client, server) =
-            fixture("/reddit/new.json", &[("future_param", "yes")], body.clone()).await;
+        let (client, server) = fixture("/new.json", &[("future_param", "yes")], body.clone()).await;
         let result = client
             .raw_get("/new.json", &[("future_param".into(), "yes".into())])
             .await
@@ -432,7 +431,7 @@ mod tests {
     #[tokio::test]
     async fn malformed_domain_schema_is_a_client_error() {
         let (client, server) = fixture(
-            "/reddit/comments/abc.json",
+            "/comments/abc.json",
             &[("raw_json", "1"), ("limit", "1")],
             json!({"future":"schema"}),
         )

@@ -108,10 +108,10 @@ MCP uses typed arguments such as `expand_more` and `max_requests`; no CLI subpro
 ## Raw HTTP
 
 ```sh
-curl 'http://127.0.0.1:8787/reddit/r/rust/hot.json?limit=5&raw_json=1'
+curl 'http://127.0.0.1:8787/r/rust/hot.json?limit=5&raw_json=1'
 ```
 
-`GET /reddit/{path}` forwards relative `.json` paths and query parameters to Reddit, including `/api/*.json`. Upstream requests use GET with anonymous authentication and a fixed Reddit origin; write methods and invalid paths are rejected. Successful responses preserve Reddit's JSON structure; `x-reddit-fetched-at` records the original fetch time. Health endpoints are `/health/live` and `/health/ready`.
+`GET /{path}` forwards relative `.json` paths and query parameters to Reddit, including `/api/*.json`. Upstream requests use GET with anonymous authentication and a fixed Reddit origin; write methods and invalid paths are rejected. Successful responses preserve Reddit's JSON structure; `x-reddit-fetched-at` records the original fetch time. `GET /health` returns `200` with `{ "ok": true }` when the gateway is running; it does not contact Reddit or report upstream availability. The gateway does not strip a `/reddit` prefix; update HTTP clients and the gateway together when migrating from prefixed URLs.
 
 ## NixOS
 
