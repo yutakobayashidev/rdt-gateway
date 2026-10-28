@@ -318,6 +318,9 @@ async fn sigterm_during_initialization_closes_embedded_http() {
         .kill_on_drop(true)
         .spawn()
         .unwrap();
+    // Child::wait closes stdin unless we take it. Keep initialization pending
+    // until SIGTERM, without racing the signal against an accidental EOF.
+    let stdin = child.stdin.take().unwrap();
     let mut stderr = BufReader::new(child.stderr.take().unwrap()).lines();
     let address = timeout(Duration::from_secs(10), async {
         loop {
@@ -337,12 +340,15 @@ async fn sigterm_during_initialization_closes_embedded_http() {
             .unwrap()
             .success()
     );
-    assert!(
-        timeout(Duration::from_secs(10), child.wait())
-            .await
-            .unwrap()
-            .unwrap()
-            .success()
-    );
+    let status = timeout(Duration::from_secs(10), child.wait())
+        .await
+        .unwrap()
+        .unwrap();
+    drop(stdin);
+    let mut remaining_stderr = Vec::new();
+    while let Some(line) = stderr.next_line().await.unwrap() {
+        remaining_stderr.push(line);
+    }
+    assert!(status.success(), "{status}: {}", remaining_stderr.join("\n"));
     assert!(tokio::net::TcpStream::connect(&address).await.is_err());
 }

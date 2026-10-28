@@ -19,8 +19,16 @@ struct Args {
     listen: Option<SocketAddr>,
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let runtime = tokio::runtime::Runtime::new()?;
+    let result = runtime.block_on(start());
+    // Tokio's stdin reader cannot be cancelled while waiting for input. The
+    // services have shut down, so do not let that reader hold the process open.
+    runtime.shutdown_background();
+    result
+}
+
+async fn start() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
